@@ -1,10 +1,13 @@
 package br.edu.ulbra.election.election.api.v1;
+
 import br.edu.ulbra.election.election.input.v1.ElectionInput;
 import br.edu.ulbra.election.election.output.v1.ElectionOutput;
 import br.edu.ulbra.election.election.output.v1.GenericOutput;
 import br.edu.ulbra.election.election.service.ElectionService;
 import io.swagger.annotations.ApiOperation;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,25 +16,22 @@ import java.util.List;
 public class ElectionApi {
 
     private final ElectionService electionService;
-    private ArrayList<ElectionOutput> listaRetorno = new ArrayList<ElectionOutput>();
 
-    public ElectionApi(ElectionService electionService) {
+    @Autowired
+    public ElectionApi(ElectionService electionService){
         this.electionService = electionService;
     }
 
-
     @GetMapping("/")
     @ApiOperation(value = "Get election List")
-
     public List<ElectionOutput> getAll(){
-        return listaRetorno;
-
+        return electionService.getAll();
     }
 
     @GetMapping("/year/{year}")
     @ApiOperation(value = "Get election List by year")
     public List<ElectionOutput> getByYear(@PathVariable Integer year){
-        return listaRetorno;
+        return new ArrayList<>();
     }
 
     @GetMapping("/{electionId}")

@@ -1,11 +1,14 @@
 package br.edu.ulbra.election.election.service;
-
+import br.edu.ulbra.election.election.client.CandidateClientService;
+import br.edu.ulbra.election.election.enums.StateCodes;
 import br.edu.ulbra.election.election.exception.GenericOutputException;
 import br.edu.ulbra.election.election.input.v1.ElectionInput;
 import br.edu.ulbra.election.election.model.Election;
-import br.edu.ulbra.election.election.output.v1.GenericOutput;
 import br.edu.ulbra.election.election.output.v1.ElectionOutput;
+import br.edu.ulbra.election.election.output.v1.GenericOutput;
 import br.edu.ulbra.election.election.repository.ElectionRepository;
+import br.edu.ulbra.election.election.repository.VoteRepository;
+import feign.FeignException;
 import org.apache.commons.lang.StringUtils;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.TypeToken;
@@ -19,16 +22,22 @@ import java.util.List;
 public class ElectionService {
 
     private final ElectionRepository electionRepository;
+    private final VoteRepository voteRepository;
+    private final CandidateClientService candidateClientService;
     private final ModelMapper modelMapper;
-
-    private static final String MESSAGE_INVALID_ID = "Invalid id";
-    private static final String MESSAGE_ELECTION_NOT_FOUND = "Election not found";
-
+    
     @Autowired
-    public ElectionService(ElectionRepository electionRepository, ModelMapper modelMapper){
+    public ElectionService(ElectionRepository electionRepository, VoteRepository voteRepository, CandidateClientService candidateClientService, ModelMapper modelMapper){
         this.electionRepository = electionRepository;
+        this.voteRepository = voteRepository;
+        this.candidateClientService = candidateClientService;
         this.modelMapper = modelMapper;
     }
+
+    private static final String MESSAGE_INVALID_ID = "Código inválido!";
+    private static final String MESSAGE_ELECTION_NOT_FOUND = "Election não encontrada!";
+    private static final String MSG_EXISTS_VOTES_IN_ELECTION = "Não pode excluir/alterar eleição com votos!";
+    private static final String MSG_EXISTS_CANDIDATES_IN_ELECTION = "Não pode excluir/alterar eleição com candidatos!";
 
     public List<ElectionOutput> getAll(){
         Type electionOutputListType = new TypeToken<List<ElectionOutput>>(){}.getType();
@@ -36,7 +45,8 @@ public class ElectionService {
     }
 
     public ElectionOutput create(ElectionInput electionInput) {
-        validateInput(electionInput, false);
+        validateInput(electionInput);
+        validateDuplicate(electionInput, null);
         Election election = modelMapper.map(electionInput, Election.class);
         election = electionRepository.save(election);
         return modelMapper.map(election, ElectionOutput.class);
@@ -59,12 +69,22 @@ public class ElectionService {
         if (electionId == null){
             throw new GenericOutputException(MESSAGE_INVALID_ID);
         }
-        validateInput(electionInput, true);
         Election election = electionRepository.findById(electionId).orElse(null);
         if (election == null){
             throw new GenericOutputException(MESSAGE_ELECTION_NOT_FOUND);
         }
+        if (voteRepository.existsVotesByElection_Id(electionId)){
+            throw new GenericOutputException(MSG_EXISTS_VOTES_IN_ELECTION);
+        }
+        if (hasCandidates(election)){
+            throw new GenericOutputException(MSG_EXISTS_CANDIDATES_IN_ELECTION);
+        }
+        validateInput(electionInput);
+        validateDuplicate(electionInput, electionId);
 
+        election.setStateCode(electionInput.getStateCode());
+        election.setDescription(electionInput.getDescription());
+        election.setYear(electionInput.getYear());
         election = electionRepository.save(election);
         return modelMapper.map(election, ElectionOutput.class);
     }
@@ -79,18 +99,55 @@ public class ElectionService {
             throw new GenericOutputException(MESSAGE_ELECTION_NOT_FOUND);
         }
 
-        electionRepository.delete(election);
+        Boolean hasVotes = voteRepository.existsVotesByElection_Id(electionId);
+        if (hasVotes){
+            throw new GenericOutputException(MSG_EXISTS_VOTES_IN_ELECTION);
+        }
 
+        if (hasCandidates(election)){
+            throw new GenericOutputException(MSG_EXISTS_CANDIDATES_IN_ELECTION);
+        }
+
+        electionRepository.delete(election);
         return new GenericOutput("Election deleted");
     }
 
-    private void validateInput(ElectionInput electionInput, boolean b) {
-        if (StringUtils.isBlank(electionInput.getDescription())){
+    private void validateDuplicate(ElectionInput electionInput, Long id){
+        Election election = electionRepository.findFirstByYearAndStateCodeAndDescription(electionInput.getYear(), electionInput.getStateCode(), electionInput.getDescription());
+        if (election != null && !election.getId().equals(id)){
+            throw new GenericOutputException("Duplicate Code");
+        }
+    }
+
+    private void validateInput(ElectionInput electionInput){
+        if (StringUtils.isBlank(electionInput.getDescription()) || electionInput.getDescription().length() < 5){
             throw new GenericOutputException("Invalid Description");
         }
         if (StringUtils.isBlank(electionInput.getStateCode())){
-            throw new GenericOutputException("Invalid StateCode");
+            throw new GenericOutputException("Invalid State Code");
+        }
+        try {
+             StateCodes.valueOf(electionInput.getStateCode());
+        } catch (IllegalArgumentException e){
+            throw new GenericOutputException("Invalid State Code");
+        }
+        if (electionInput.getYear() == null || electionInput.getYear() < 2000 || electionInput.getYear() > 2200){
+            throw new GenericOutputException("Invalid Year");
         }
     }
+
+    //VALIDA SE EXISTE CANDIDATOS NA ELEICAO
+    private boolean hasCandidates(Election election){
+        boolean t = false;
+        try{
+            t = candidateClientService.getByElection(election.getId());
+        } catch (FeignException e){
+            if (e.status() == 500) {
+                throw new GenericOutputException("Feign Exception");
+            }
+        }
+        return t;
+    }
+
 
 }

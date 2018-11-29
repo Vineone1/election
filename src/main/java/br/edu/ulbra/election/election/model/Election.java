@@ -1,21 +1,19 @@
 package br.edu.ulbra.election.election.model;
 
 import javax.persistence.*;
-import javax.validation.constraints.Min;
 
 @Entity
-public class Election{
+public class Election {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Min(1980)
     @Column(nullable = false)
     private Integer year;
 
     @Column(nullable = false)
-    private String state_code;
+    private String stateCode;
 
     @Column(nullable = false)
     private String description;
@@ -36,12 +34,12 @@ public class Election{
         this.year = year;
     }
 
-    public String getState_code() {
-        return state_code;
+    public String getStateCode() {
+        return stateCode;
     }
 
-    public void setState_code(String state_code) {
-        this.state_code = state_code;
+    public void setStateCode(String stateCode) {
+        this.stateCode = stateCode;
     }
 
     public String getDescription() {
@@ -51,4 +49,5 @@ public class Election{
     public void setDescription(String description) {
         this.description = description;
     }
+
 }
