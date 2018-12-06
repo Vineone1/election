@@ -9,21 +9,22 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 @Service
 public class VoterClientService {
+
     private final VoterClient voterClient;
 
     @Autowired
     public VoterClientService(VoterClient voterClient){
         this.voterClient = voterClient;
     }
-    public VoterOutput getById(Long id){
-        return this.voterClient.getById(id);
+
+    public VoterOutput getById(Long voterId){
+        return voterClient.getById(voterId);
     }
 
-
-    @FeignClient(value="voter-service", url="${url.voter-service}")
+    @FeignClient(name = "voter-service", url = "${url.voter-service}")
     private interface VoterClient {
 
         @GetMapping("/v1/voter/{voterId}")
-        VoterOutput getById(@PathVariable(name = "voterId") Long electionId);
+        VoterOutput getById(@PathVariable(name="voterId") Long voterId);
     }
 }

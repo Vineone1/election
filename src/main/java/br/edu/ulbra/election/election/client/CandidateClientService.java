@@ -7,32 +7,40 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
+import java.util.List;
+
 @Service
 public class CandidateClientService {
 
     private final CandidateClient candidateClient;
 
     @Autowired
-    public CandidateClientService(CandidateClient candidateClient) {
+    public CandidateClientService(CandidateClient candidateClient){
         this.candidateClient = candidateClient;
     }
 
-    public CandidateOutput getById(Long id){
-        return this.candidateClient.getById(id);
+    public CandidateOutput getById(Long candidateId){
+        return candidateClient.getById(candidateId);
     }
 
-    //RETORNA TRUE SE TEM CANDIDATO NA ELEICAO
-    public Boolean getByElection(Long id){
-        return this.candidateClient.getByElection(id);
+    public List<CandidateOutput> getByElection(Long electionId){
+        return candidateClient.getByElection(electionId);
     }
 
-    @FeignClient(value="candidate-service", url="${url.candidate-service}")
+    public CandidateOutput getByNumberAndElection(Long electionId, Long candidateNumber){
+        return candidateClient.getByNumberAndElection(electionId, candidateNumber);
+    }
+
+    @FeignClient(name = "candidate-service", url = "${url.candidate-service}")
     private interface CandidateClient {
 
         @GetMapping("/v1/candidate/{candidateId}")
-        CandidateOutput getById(@PathVariable(name = "candidateId") Long electionId);
+        CandidateOutput getById(@PathVariable(name = "candidateId") Long candidateId);
 
-        @GetMapping("/v1/candidate/byElection/{electionId}")
-        Boolean getByElection (@PathVariable(name="electionId") Long electionId);
+        @GetMapping("/v1/candidate/election/{electionId}")
+        List<CandidateOutput> getByElection(@PathVariable(name = "electionId") Long electionId);
+
+        @GetMapping("/getByNumberAndElection/{electionId}/{candidateNumber}")
+        CandidateOutput getByNumberAndElection(@PathVariable(name = "electionId") Long electionId, @PathVariable(name = "candidateNumber") Long candidateNumber);
     }
 }

@@ -8,7 +8,7 @@ public class VoteInput {
 
     @ApiModelProperty(example = "1", notes = "Election Unique Identification")
     private Long electionId;
-    @ApiModelProperty(example = "1", notes = "Voter Unique Identifier")
+    @ApiModelProperty(example = "2", notes = "Voter Unique Identifier")
     private Long voterId;
     @ApiModelProperty(example = "77100", notes = "Candidate Number")
     private Long candidateNumber;

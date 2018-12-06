@@ -1,9 +1,11 @@
 package br.edu.ulbra.election.election.service;
+
 import br.edu.ulbra.election.election.client.CandidateClientService;
 import br.edu.ulbra.election.election.enums.StateCodes;
 import br.edu.ulbra.election.election.exception.GenericOutputException;
 import br.edu.ulbra.election.election.input.v1.ElectionInput;
 import br.edu.ulbra.election.election.model.Election;
+import br.edu.ulbra.election.election.output.v1.CandidateOutput;
 import br.edu.ulbra.election.election.output.v1.ElectionOutput;
 import br.edu.ulbra.election.election.output.v1.GenericOutput;
 import br.edu.ulbra.election.election.repository.ElectionRepository;
@@ -23,21 +25,20 @@ public class ElectionService {
 
     private final ElectionRepository electionRepository;
     private final VoteRepository voteRepository;
-    private final CandidateClientService candidateClientService;
     private final ModelMapper modelMapper;
+    private final CandidateClientService candidateClientService;
     
     @Autowired
-    public ElectionService(ElectionRepository electionRepository, VoteRepository voteRepository, CandidateClientService candidateClientService, ModelMapper modelMapper){
+    public ElectionService(ElectionRepository electionRepository, ModelMapper modelMapper, VoteRepository voteRepository, CandidateClientService candidateClientService){
         this.electionRepository = electionRepository;
+        this.modelMapper = modelMapper;
         this.voteRepository = voteRepository;
         this.candidateClientService = candidateClientService;
-        this.modelMapper = modelMapper;
     }
 
-    private static final String MESSAGE_INVALID_ID = "Código inválido!";
-    private static final String MESSAGE_ELECTION_NOT_FOUND = "Election não encontrada!";
-    private static final String MSG_EXISTS_VOTES_IN_ELECTION = "Não pode excluir/alterar eleição com votos!";
-    private static final String MSG_EXISTS_CANDIDATES_IN_ELECTION = "Não pode excluir/alterar eleição com candidatos!";
+
+    private static final String MESSAGE_INVALID_ID = "Invalid id";
+    private static final String MESSAGE_ELECTION_NOT_FOUND = "Election not found";
 
     public List<ElectionOutput> getAll(){
         Type electionOutputListType = new TypeToken<List<ElectionOutput>>(){}.getType();
@@ -69,18 +70,15 @@ public class ElectionService {
         if (electionId == null){
             throw new GenericOutputException(MESSAGE_INVALID_ID);
         }
+        validateInput(electionInput);
+        validateDuplicate(electionInput, electionId);
+
         Election election = electionRepository.findById(electionId).orElse(null);
         if (election == null){
             throw new GenericOutputException(MESSAGE_ELECTION_NOT_FOUND);
         }
-        if (voteRepository.existsVotesByElection_Id(electionId)){
-            throw new GenericOutputException(MSG_EXISTS_VOTES_IN_ELECTION);
-        }
-        if (hasCandidates(election)){
-            throw new GenericOutputException(MSG_EXISTS_CANDIDATES_IN_ELECTION);
-        }
-        validateInput(electionInput);
-        validateDuplicate(electionInput, electionId);
+
+        validateIntegrity(election);
 
         election.setStateCode(electionInput.getStateCode());
         election.setDescription(electionInput.getDescription());
@@ -99,16 +97,10 @@ public class ElectionService {
             throw new GenericOutputException(MESSAGE_ELECTION_NOT_FOUND);
         }
 
-        Boolean hasVotes = voteRepository.existsVotesByElection_Id(electionId);
-        if (hasVotes){
-            throw new GenericOutputException(MSG_EXISTS_VOTES_IN_ELECTION);
-        }
-
-        if (hasCandidates(election)){
-            throw new GenericOutputException(MSG_EXISTS_CANDIDATES_IN_ELECTION);
-        }
+        validateIntegrity(election);
 
         electionRepository.delete(election);
+
         return new GenericOutput("Election deleted");
     }
 
@@ -117,6 +109,23 @@ public class ElectionService {
         if (election != null && !election.getId().equals(id)){
             throw new GenericOutputException("Duplicate Code");
         }
+    }
+
+    private void validateIntegrity(Election election){
+        Long votes = voteRepository.countByElection(election);
+        if (votes > 0){
+            throw new GenericOutputException("Election already has votes");
+        }
+
+        try {
+            List<CandidateOutput> candidateOutputList = candidateClientService.getByElection(election.getId());
+            if (candidateOutputList.isEmpty()){
+                throw new GenericOutputException("Election has candidates linked");
+            }
+        } catch (FeignException ex){
+            throw new GenericOutputException("Error accessing candidate service");
+        }
+
     }
 
     private void validateInput(ElectionInput electionInput){
@@ -135,19 +144,5 @@ public class ElectionService {
             throw new GenericOutputException("Invalid Year");
         }
     }
-
-    //VALIDA SE EXISTE CANDIDATOS NA ELEICAO
-    private boolean hasCandidates(Election election){
-        boolean t = false;
-        try{
-            t = candidateClientService.getByElection(election.getId());
-        } catch (FeignException e){
-            if (e.status() == 500) {
-                throw new GenericOutputException("Feign Exception");
-            }
-        }
-        return t;
-    }
-
 
 }
